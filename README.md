@@ -15,3 +15,7 @@ cd build
 cmake .. -G "Unix Makefiles"
 make
 ```
+
+### Run
+
+Go to the root directory of this repository and run binaries located in the `/bin/` directory from there.
