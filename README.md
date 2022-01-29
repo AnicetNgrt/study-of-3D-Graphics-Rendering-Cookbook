@@ -6,6 +6,8 @@ Most of the code in this repository is heavily inspired by and/or copied from th
 
 ### Build on Linux
 
+Add all the assets from the [official git repository of the book](https://github.com/PacktPublishing/3D-Graphics-Rendering-Cookbook)'s `/data/` directory into this repository's `/data/` directory.
+
 Make sure you have OpenGL, Vulkan, cmake, make, g++ and Python3
 
 ```bash
