@@ -1,7 +1,3 @@
 build/
 bin/
-deps/.bootstrap.json
-deps/archives/
-deps/src/
-deps copy/
 imgui.ini
