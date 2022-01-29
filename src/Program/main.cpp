@@ -16,11 +16,12 @@ using glm::vec3;
 
 static const char* shaderCodeVertex = R"(
 #version 460 core
-layout (std140, binding = 0) uniform PerFrameData {
+layout(std140, binding = 0) uniform PerFrameData
+{
 	uniform mat4 MVP;
-	uniform int isWireFrame;
+	uniform int isWireframe;
 };
-layout (location = 0) out vec3 color;
+layout (location=0) out vec2 uv;
 const vec3 pos[8] = vec3[8](
 	vec3(-1.0,-1.0, 1.0),
 	vec3( 1.0,-1.0, 1.0),
@@ -57,20 +58,32 @@ const int indices[36] = int[36](
 	// top
 	3, 2, 6, 6, 7, 3
 );
-void main() {
+const vec2 tc[3] = vec2[3](
+	vec2( 0.0, 0.0 ),
+	vec2( 1.0, 0.0 ),
+	vec2( 0.5, 1.0 )
+);
+void main()
+{
 	int idx = indices[gl_VertexID];
 	gl_Position = MVP * vec4(pos[idx], 1.0);
-	color = isWireFrame > 0 ? vec3(0.0) : col[idx];
+	uv = tc[int(mod(gl_VertexID, 3.0))];
 }
 )";
 
 static const char* shaderCodeFragment = R"(
 #version 460 core
-layout (location=0) in vec3 color;
+layout(std140, binding = 0) uniform PerFrameData
+{
+	uniform mat4 MVP;
+	uniform int isWireframe;
+};
+layout (location=0) in vec2 uv;
 layout (location=0) out vec4 out_FragColor;
+uniform sampler2D texture0;
 void main()
 {
-	out_FragColor = vec4(color, 1.0);
+	out_FragColor = isWireframe > 0 ? vec4(vec3(0.0), 1.0) : texture(texture0, uv);
 };
 )";
 
@@ -153,13 +166,25 @@ int main( void )
 		.isWireFrame = false
 	};
 
-	int w, h, comp;
-	const uint8_t* img = stbi_load("data/ch2_sample3_STB.jpg", &w, &h, &comp, 3);
-
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_POLYGON_OFFSET_LINE);
 	glPolygonOffset(-1.0f, -1.0f);
 	glClearColor( 1.0f, 1.0f, 1.0f, 1.0f );
+
+	int w, h, comp;
+	const uint8_t* img = stbi_load("data/ch2_sample3_STB.jpg", &w, &h, &comp, 3);
+
+	GLuint texture;
+	glCreateTextures(GL_TEXTURE_2D, 1, &texture);
+	glTextureParameteri(texture, GL_TEXTURE_MAX_LEVEL, 0);
+	glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTextureStorage2D(texture, 1, GL_RGB8, w, h);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glTextureSubImage2D(texture, 0, 0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, img);
+	glBindTextures(0, 1, &texture);
+
+	stbi_image_free((void*)img);
 
 	while ( !glfwWindowShouldClose( window ) )
 	{
