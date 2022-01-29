@@ -3,6 +3,11 @@
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb/stb_image_write.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -103,6 +108,15 @@ int main( void )
 		{
 			if ( key == GLFW_KEY_ESCAPE && action == GLFW_PRESS )
 				glfwSetWindowShouldClose( window, GLFW_TRUE );
+
+			if(key == GLFW_KEY_F9 && action == GLFW_PRESS) {
+				int width, height;
+				glfwGetFramebufferSize(window, &width, &height);
+				uint8_t* screenshotPixels = (uint8_t*) malloc(width*height*4);
+				glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, screenshotPixels);
+				stbi_write_png("screenshot.png", width, height, 4, screenshotPixels, 0);
+				free(screenshotPixels);
+			}
 		}
 	);
 
@@ -138,6 +152,9 @@ int main( void )
 		.mvp = mat4(0.0),
 		.isWireFrame = false
 	};
+
+	int w, h, comp;
+	const uint8_t* img = stbi_load("data/ch2_sample3_STB.jpg", &w, &h, &comp, 3);
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_POLYGON_OFFSET_LINE);
