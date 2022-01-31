@@ -1,5 +1,6 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
+#include <imgui/imgui.h>
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 
@@ -10,117 +11,44 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 using glm::mat4;
 using glm::vec3;
 
-static const char* shaderCodeVertex = R"(
-#version 460 core
-layout(std140, binding = 0) uniform PerFrameData
-{
-	uniform mat4 MVP;
-	uniform int isWireframe;
-};
-layout (location=0) out vec2 uv;
-const vec3 pos[8] = vec3[8](
-	vec3(-1.0,-1.0, 1.0),
-	vec3( 1.0,-1.0, 1.0),
-	vec3( 1.0, 1.0, 1.0),
-	vec3(-1.0, 1.0, 1.0),
-
-	vec3(-1.0,-1.0,-1.0),
-	vec3( 1.0,-1.0,-1.0),
-	vec3( 1.0, 1.0,-1.0),
-	vec3(-1.0, 1.0,-1.0)
-);
-const vec3 col[8] = vec3[8](
-	vec3( 1.0, 0.0, 0.0),
-	vec3( 0.0, 1.0, 0.0),
-	vec3( 0.0, 0.0, 1.0),
-	vec3( 1.0, 1.0, 0.0),
-
-	vec3( 1.0, 1.0, 0.0),
-	vec3( 0.0, 0.0, 1.0),
-	vec3( 0.0, 1.0, 0.0),
-	vec3( 1.0, 0.0, 0.0)
-);
-const int indices[36] = int[36](
-	// front
-	0, 1, 2, 2, 3, 0,
-	// right
-	1, 5, 6, 6, 2, 1,
-	// back
-	7, 6, 5, 5, 4, 7,
-	// left
-	4, 0, 3, 3, 7, 4,
-	// bottom
-	4, 5, 1, 1, 0, 4,
-	// top
-	3, 2, 6, 6, 7, 3
-);
-const vec2 tc[3] = vec2[3](
-	vec2( 0.0, 0.0 ),
-	vec2( 1.0, 0.0 ),
-	vec2( 0.5, 1.0 )
-);
-void main()
-{
-	int idx = indices[gl_VertexID];
-	gl_Position = MVP * vec4(pos[idx], 1.0);
-	uv = tc[int(mod(gl_VertexID, 3.0))];
-}
-)";
-
-static const char* shaderCodeFragment = R"(
-#version 460 core
-layout(std140, binding = 0) uniform PerFrameData
-{
-	uniform mat4 MVP;
-	uniform int isWireframe;
-};
-layout (location=0) in vec2 uv;
-layout (location=0) out vec4 out_FragColor;
-uniform sampler2D texture0;
-void main()
-{
-	out_FragColor = isWireframe > 0 ? vec4(vec3(0.0), 1.0) : texture(texture0, uv);
-};
-)";
-
 struct PerFrameData {
 	mat4 mvp;
-	int isWireFrame;
 };
 
-int main( void )
+int main(void)
 {
 	glfwSetErrorCallback(
-		[]( int error, const char* description )
+		[](int error, const char* description)
 		{
-			fprintf( stderr, "Error: %s\n", description );
+			fprintf(stderr, "Error: %s\n", description);
 		}
 	);
 
-	if ( !glfwInit() )
-		exit( EXIT_FAILURE );
+	if (!glfwInit())
+		exit(EXIT_FAILURE);
 
-	glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 4 );
-	glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 6 );
-	glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	GLFWwindow* window = glfwCreateWindow( 1024, 768, "Simple example", nullptr, nullptr );
-	if ( !window )
+	GLFWwindow* window = glfwCreateWindow(1024, 768, "Simple example", nullptr, nullptr);
+	if (!window)
 	{
 		glfwTerminate();
-		exit( EXIT_FAILURE );
+		exit(EXIT_FAILURE);
 	}
 
 	glfwSetKeyCallback(
 		window,
-		[]( GLFWwindow* window, int key, int scancode, int action, int mods )
+		[](GLFWwindow* window, int key, int scancode, int action, int mods)
 		{
-			if ( key == GLFW_KEY_ESCAPE && action == GLFW_PRESS )
-				glfwSetWindowShouldClose( window, GLFW_TRUE );
+			if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+				glfwSetWindowShouldClose(window, GLFW_TRUE);
 
 			if(key == GLFW_KEY_F9 && action == GLFW_PRESS) {
 				int width, height;
@@ -133,95 +61,200 @@ int main( void )
 		}
 	);
 
-	glfwMakeContextCurrent( window );
-	gladLoadGL( glfwGetProcAddress );
-	glfwSwapInterval( 1 );
+	glfwSetCursorPosCallback(
+		window,
+		[](auto* window, double x, double y)
+		{
+			ImGui::GetIO().MousePos = ImVec2((float)x, (float)y);
+		}
+	);
 
-	const GLuint shaderVertex = glCreateShader( GL_VERTEX_SHADER );
-	glShaderSource( shaderVertex, 1, &shaderCodeVertex, nullptr );
-	glCompileShader( shaderVertex );
+	glfwSetMouseButtonCallback(
+		window,
+		[](auto* window, int button, int action, int mods)
+		{
+			auto& io = ImGui::GetIO();
+			const int idx = button == GLFW_MOUSE_BUTTON_LEFT ? 0 : button == GLFW_MOUSE_BUTTON_RIGHT ? 2 : 1;
+			io.MouseDown[idx] = action == GLFW_PRESS;
+		}
+	);
 
-	const GLuint shaderFragment = glCreateShader( GL_FRAGMENT_SHADER );
-	glShaderSource( shaderFragment, 1, &shaderCodeFragment, nullptr );
-	glCompileShader( shaderFragment );
-
-	const GLuint program = glCreateProgram();
-	glAttachShader( program, shaderVertex );
-	glAttachShader( program, shaderFragment );
-
-	glLinkProgram( program );
-	glUseProgram( program );
+	glfwMakeContextCurrent(window);
+	gladLoadGL(glfwGetProcAddress);
+	glfwSwapInterval(1);
 
 	GLuint vao;
-	glCreateVertexArrays( 1, &vao );
-	glBindVertexArray( vao );
+	glCreateVertexArrays(1, &vao);
 
-	const GLsizeiptr kBufferSize = sizeof(PerFrameData);
-	GLuint perFrameDataBuf;
-	glCreateBuffers(1, &perFrameDataBuf);
-	glNamedBufferStorage(perFrameDataBuf, kBufferSize, nullptr, GL_DYNAMIC_STORAGE_BIT);
-	glBindBufferRange(GL_UNIFORM_BUFFER, 0, perFrameDataBuf, 0, kBufferSize);
-	PerFrameData perFrameData = {
-		.mvp = mat4(0.0),
-		.isWireFrame = false
-	};
+	GLuint handleVBO;
+	glCreateBuffers(1, &handleVBO);
+	glNamedBufferStorage(handleVBO, 256*1024, nullptr, GL_DYNAMIC_STORAGE_BIT);
 
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_POLYGON_OFFSET_LINE);
-	glPolygonOffset(-1.0f, -1.0f);
-	glClearColor( 1.0f, 1.0f, 1.0f, 1.0f );
+	GLuint handleElements;
+	glCreateBuffers(1, &handleElements);
+	glNamedBufferStorage(handleElements, 256*1024, nullptr, GL_DYNAMIC_STORAGE_BIT);
 
-	int w, h, comp;
-	const uint8_t* img = stbi_load("data/ch2_sample3_STB.jpg", &w, &h, &comp, 3);
+	glVertexArrayElementBuffer(vao, handleElements);
+	glVertexArrayVertexBuffer(vao, 0, handleVBO, 0, sizeof(ImDrawVert));
+	
+	glEnableVertexArrayAttrib(vao, 0);
+	glEnableVertexArrayAttrib(vao, 1);
+	glEnableVertexArrayAttrib(vao, 2);
+	
+	glVertexArrayAttribFormat(vao, 0, 2, GL_FLOAT, GL_FALSE, IM_OFFSETOF(ImDrawVert, pos));
+	glVertexArrayAttribFormat(vao, 1, 2, GL_FLOAT, GL_FALSE, IM_OFFSETOF(ImDrawVert, uv));
+	glVertexArrayAttribFormat(vao, 2, 4, GL_UNSIGNED_BYTE, GL_TRUE, IM_OFFSETOF(ImDrawVert, col));
+
+	glVertexArrayAttribBinding(vao, 0, 0);
+	glVertexArrayAttribBinding(vao, 1, 0);
+	glVertexArrayAttribBinding(vao, 2, 0);
+
+	glBindVertexArray(vao);
+
+	const GLchar* shaderCodeVertex = R"(
+		#version 460 core
+		layout (location = 0) in vec2 Position;
+		layout (location = 1) in vec2 UV;
+		layout (location = 2) in vec4 Color;
+		layout(std140, binding = 0) uniform PerFrameData
+		{
+			uniform mat4 MVP;
+		};
+		out vec2 Frag_UV;
+		out vec4 Frag_Color;
+		void main()
+		{
+			Frag_UV = UV;
+			Frag_Color = Color;
+			gl_Position = MVP * vec4(Position.xy,0,1);
+		}
+	)";
+
+	const GLchar* shaderCodeFragment = R"(
+		#version 460 core
+		in vec2 Frag_UV;
+		in vec4 Frag_Color;
+		layout (binding = 0) uniform sampler2D Texture;
+		layout (location = 0) out vec4 Out_Color;
+		void main()
+		{
+			Out_Color = Frag_Color * texture(Texture, Frag_UV.st);
+		}
+	)";
+
+	const GLuint handleVertex = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(handleVertex, 1, &shaderCodeVertex, nullptr);
+	glCompileShader(handleVertex);
+
+	const GLuint handleFragment = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(handleFragment, 1, &shaderCodeFragment, nullptr);
+	glCompileShader(handleFragment);
+
+	const GLuint program = glCreateProgram();
+	glAttachShader(program, handleVertex);
+	glAttachShader(program, handleFragment);
+	glLinkProgram(program);
+	glUseProgram(program);
+
+	GLuint perFrameDataBuffer;
+	glCreateBuffers(1, &perFrameDataBuffer);
+	glNamedBufferStorage(perFrameDataBuffer, sizeof(mat4), nullptr, GL_DYNAMIC_STORAGE_BIT);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, perFrameDataBuffer);
+
+	ImGui::CreateContext();
+	ImGuiIO & io = ImGui::GetIO();
+	io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
+
+	ImFontConfig cfg = ImFontConfig();
+	cfg.FontDataOwnedByAtlas = false;
+	cfg.RasterizerMultiply = 1.5f;
+	cfg.SizePixels = 768.0f / 32.0f;
+	cfg.PixelSnapH = true;
+	cfg.OversampleH = 4;
+	cfg.OversampleV = 4;
+	ImFont* Font = io.Fonts->AddFontFromFileTTF("data/OpenSans-Light.ttf", cfg.SizePixels, &cfg);
+
+	unsigned char* pixels = nullptr;
+	int width, height;
+	io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
 	GLuint texture;
 	glCreateTextures(GL_TEXTURE_2D, 1, &texture);
 	glTextureParameteri(texture, GL_TEXTURE_MAX_LEVEL, 0);
 	glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTextureStorage2D(texture, 1, GL_RGB8, w, h);
+	glTextureStorage2D(texture, 1, GL_RGBA8, width, height);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	glTextureSubImage2D(texture, 0, 0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, img);
+	glTextureSubImage2D(texture, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 	glBindTextures(0, 1, &texture);
 
-	stbi_image_free((void*)img);
+	io.Fonts->TexID = (ImTextureID)(intptr_t)texture;
+	io.FontDefault = Font;
+	io.DisplayFramebufferScale = ImVec2(1, 1);
 
-	while ( !glfwWindowShouldClose( window ) )
+	glEnable(GL_BLEND);
+	glBlendEquation(GL_FUNC_ADD);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_SCISSOR_TEST);
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+	while (!glfwWindowShouldClose(window))
 	{
 		int width, height;
-		glfwGetFramebufferSize( window, &width, &height );
-		const float ratio = width / (float)height; 
+		glfwGetFramebufferSize(window, &width, &height);
 
-		glViewport( 0, 0, width, height );
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glViewport(0, 0, width, height);
+		glClear(GL_COLOR_BUFFER_BIT);
 
-		const mat4 p = glm::perspective(45.0f, ratio, 0.1f, 1000.0f); 	// camera projection
-		const mat4 m = glm::rotate(										// camera position & rotation 
-			glm::translate(mat4(1.0f), vec3(0.0f, 0.0f, -3.5f)),
-			(float)glfwGetTime(), vec3(1.0f)
-		);
-		perFrameData.mvp = p * m;
+		ImGuiIO& io = ImGui::GetIO();
+		io.DisplaySize = ImVec2((float)width, (float)height);
+		ImGui::NewFrame();
+		ImGui::ShowDemoWindow();
+		ImGui::Render();
 
-		perFrameData.isWireFrame = false;
-		glNamedBufferSubData(perFrameDataBuf, 0, kBufferSize, &perFrameData);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		
-		perFrameData.isWireFrame = true;
-		glNamedBufferSubData(perFrameDataBuf, 0, kBufferSize, &perFrameData);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
+		const ImDrawData* draw_data = ImGui::GetDrawData();
 
-		glfwSwapBuffers( window );
+		const float L = draw_data->DisplayPos.x;
+		const float R = draw_data->DisplayPos.x + draw_data->DisplaySize.x;
+		const float T = draw_data->DisplayPos.y;
+		const float B = draw_data->DisplayPos.y + draw_data->DisplaySize.y;
+		const mat4 orthoProjection = glm::ortho(L, R, B, T);
+
+		glNamedBufferSubData(perFrameDataBuffer, 0, sizeof(mat4), glm::value_ptr(orthoProjection));
+
+		for (int n = 0; n < draw_data->CmdListsCount; n++)
+		{
+			const ImDrawList* cmd_list = draw_data->CmdLists[n];
+			glNamedBufferSubData(handleVBO, 0, (GLsizeiptr)cmd_list->VtxBuffer.Size * sizeof(ImDrawVert), cmd_list->VtxBuffer.Data);
+			glNamedBufferSubData(handleElements, 0, (GLsizeiptr)cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx), cmd_list->IdxBuffer.Data);
+
+			for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
+			{
+				const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+				const ImVec4 cr = pcmd->ClipRect;
+				glScissor((int)cr.x, (int)(height - cr.w), (int)(cr.z - cr.x), (int)(cr.w - cr.y));
+				glBindTextureUnit(0, (GLuint)(intptr_t)pcmd->TextureId);
+				glDrawElementsBaseVertex(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, GL_UNSIGNED_SHORT,
+					(void*)(intptr_t)(pcmd->IdxOffset * sizeof(ImDrawIdx)), (GLint)pcmd->VtxOffset);
+			}
+		}
+
+		glScissor(0, 0, width, height);
+
+		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
 
-	glDeleteProgram( program );
-	glDeleteShader( shaderFragment );
-	glDeleteShader( shaderVertex );
-	glDeleteVertexArrays( 1, &vao );
+	ImGui::DestroyContext();
 
-	glfwDestroyWindow( window );
+	glDeleteProgram(program);
+	glDeleteShader(handleFragment);
+	glDeleteShader(handleVertex);
+	glDeleteVertexArrays(1, &vao);
+
+	glfwDestroyWindow(window);
 	glfwTerminate();
 
 	return 0;
