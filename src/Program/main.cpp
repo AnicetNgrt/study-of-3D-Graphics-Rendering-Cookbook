@@ -1,50 +1,36 @@
 #include <stdio.h>
 #include <stdint.h>
+
+#include <iostream>
+#include <fstream>
 #include <thread>
 #include <vector>
 
-#include "etc2comp/EtcLib/Etc/Etc.h"
-#include "etc2comp/EtcLib/Etc/EtcImage.h"
-#include "etc2comp/EtcLib/Etc/EtcFilter.h"
-#include "etc2comp/EtcTool/EtcFile.h"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb/stb_image.h>
+#include <taskflow/taskflow.hpp>
 
 int main()
 {
-	int w, h, comp;
-	const uint8_t* img = stbi_load("data/ch2_sample3_STB.jpg", &w, &h, &comp, 4);
+	tf::Taskflow taskflow;
 
-	std::vector<float> rgbaf;
+	std::vector<int> items{ 1, 2, 3, 4, 5, 6, 7, 8 };
 
-	for (int i = 0; i != w * h * 4; i+=4)
+	auto task = taskflow.for_each(
+		items.begin(), items.end(), [](int item)
+		{
+			std::cout << item;
+		}
+	);
+
+	taskflow.emplace([]() { std::cout << "\nS - Start\n"; }).name("S").precede(task);
+	taskflow.emplace([]() { std::cout << "\nT - End\n"; }).name("T").succeed(task);
+
 	{
-		rgbaf.push_back(img[i+0] / 255.0f);
-		rgbaf.push_back(img[i+1] / 255.0f);
-		rgbaf.push_back(img[i+2] / 255.0f);
-		rgbaf.push_back(img[i+3] / 255.0f);
+		std::ofstream os("taskflow.dot");
+		taskflow.dump(os);
 	}
 
-	const auto etcFormat = Etc::Image::Format::RGB8;
-	const auto errorMetric = Etc::ErrorMetric::BT709;
-
-	Etc::Image image(rgbaf.data(), w, h, errorMetric);
-
-	image.Encode(etcFormat, errorMetric, ETCCOMP_DEFAULT_EFFORT_LEVEL, std::thread::hardware_concurrency(), 1024);
-
-	Etc::File etcFile(
-		"image.ktx",
-		Etc::File::Format::KTX,
-		etcFormat,
-		image.GetEncodingBits(),
-		image.GetEncodingBitsBytes(),
-		image.GetSourceWidth(),
-		image.GetSourceHeight(),
-		image.GetExtendedWidth(),
-		image.GetExtendedHeight()
-	);
-	etcFile.Write();
+	tf::Executor executor;
+	executor.run(taskflow).wait();
 
 	return 0;
 }
