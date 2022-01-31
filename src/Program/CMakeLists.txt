@@ -8,4 +8,4 @@ include_directories(../../deps/src/imgui)
 
 SETUP_APP(Program "Program" .)
 
-target_link_libraries(Program glad glfw)
+target_link_libraries(Program glad glfw assimp)
